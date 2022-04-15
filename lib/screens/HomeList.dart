@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:english_words/english_words.dart' as english_words;
+
 import 'dart:convert';
 import 'HomeDetails.dart';
 
@@ -19,7 +19,7 @@ class AppSearch extends StatelessWidget {
         initialRoute: '/list',
         routes: {
           '/list': (context) => HomeList(),
-          '/details':(context) => HomeDetails(),
+          '/details': (context) => HomeDetails(),
         });
   }
 }
@@ -35,14 +35,23 @@ class HomeList extends StatefulWidget {
 // https://github.com/flutter/flutter/blob/master/examples/flutter_gallery/lib/demo/material/search_demo.dart
 
 class _HomeListState extends State<HomeList> {
+  // final List<String> Words;
+  // _HomeListState()
+  //     : Words = List.from(Set.from(all))
+  //   ..sort(
+  //         (w1, w2) => w1.toLowerCase().compareTo(w2.toLowerCase()),
+  //   ),
+  //       super();
+  String query = '';
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-            leading: IconButton(onPressed: () {}, 
-            icon: Icon(Icons.arrow_back)),
+            leading: IconButton(onPressed: () {}, icon: const Icon(Icons.arrow_back)),
             actions: <Widget>[
-              IconButton(icon: Icon(Icons.shopping_cart), onPressed: () => {}),
+              IconButton(icon: const Icon(Icons.shopping_cart), onPressed: () => {}),
             ],
             backgroundColor: Colors.blue,
             title: Center(
@@ -50,25 +59,29 @@ class _HomeListState extends State<HomeList> {
               decoration: BoxDecoration(
                   color: Colors.white, borderRadius: BorderRadius.circular(10)),
               child: SizedBox(
-                width: 340,
                 child: TextField(
+                  onChanged: (query) {
+                    setState(() {
+                      this.query = query;
+                    });
+                  },
                   decoration: InputDecoration(
                     prefixIcon: IconButton(
                         onPressed: () {},
                         icon: Icon(Icons.search),
                         color: Colors.grey),
                     suffixIcon: IconButton(
-                        onPressed: () {},
-                        icon: Icon(Icons.clear),
+                        onPressed: () {
+                          query = '';
+                        },
+                        icon: const Icon(Icons.clear),
                         color: Colors.grey),
                     hintText: 'Search...',
                     contentPadding: EdgeInsets.all(20),
                   ),
                 ),
               ),
-            )
-            )
-            ),
+            ))),
         body: FutureBuilder<List<Product>>(
           future: fetchPhotos(http.Client()),
           builder: (context, snapshot) {
@@ -77,15 +90,17 @@ class _HomeListState extends State<HomeList> {
                 child: Text('An error has occurred!'),
               );
             } else if (snapshot.hasData) {
-              return PhotosList(photos: snapshot.data!);
+              return PhotosList(
+                  photos: snapshot.data!
+                      .where((photos) => photos.name.contains(query)) // nhập vào -> contain: ktra xem có name ko, có thì list ra
+                      .toList());
             } else {
               return const Center(
                 child: CircularProgressIndicator(),
               );
             }
           },
-        )
-        );
+        ));
   }
 }
 
@@ -98,68 +113,86 @@ class PhotosList extends StatelessWidget {
   Widget build(BuildContext context) {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, //chia là 2 cột
-        mainAxisSpacing: 10, 
+        crossAxisCount: 2, //chia làm 2 cột
+        mainAxisSpacing: 10,
         crossAxisSpacing: 10,
       ),
       padding: const EdgeInsets.all(8.0),
       itemCount: photos.length,
       itemBuilder: (context, index) {
         return GestureDetector(
-          onTap:(){ Navigator.pushNamed(context, '/details');},
-          child:Container(
-            decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(
-                    width: 1, color: Color.fromARGB(255, 218, 218, 218)),
-                borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                SizedBox(
-                    width: 120,
-                    child: Image.network(
-                      photos[index].thumbnailUrl,
-                    )),
-                Text(photos[index].name, style: TextStyle(fontSize: 12),),
-                Row(
+            onTap: () {
+              Navigator.pushNamed(context, '/details',
+                  arguments: photos[index]);
+            },
+            child: Container(
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(
+                        width: 1, color: Color.fromARGB(200, 200, 200, 200)),
+                    borderRadius: BorderRadius.circular(12)),
+                child: Column(
                   children: [
-                    RatingBar.builder(
-                      itemSize: 10,
-                      initialRating: photos[index].ratingAverage,
-                      minRating: 1,
-                      direction: Axis.horizontal,
-                      allowHalfRating: true,
-                      itemCount: 5,
-                      itemPadding: EdgeInsets.symmetric(horizontal: 4.0),
-                      itemBuilder: (context, _) => Icon(
-                        Icons.star,
-                        color: Colors.amber, 
-                      ),
-                      onRatingUpdate: (rating) {},
+                    SizedBox(
+                        width: 120,
+                        child: Image.network(
+                          photos[index].thumbnailUrl,
+                        )),
+                    Text(
+                      photos[index].name,
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                      // text dài quá thì sẽ xuống dòng
+                      maxLines: 2, // chia làm 2 dòng
                     ),
-                    Text('(${photos[index].reviewCount}) | ', style: TextStyle(fontSize: 10),), //(' ${} ')
-                    Text('${photos[index].quantitySold == null ? '' : photos[index].quantitySold!.text }' ,style: TextStyle(fontSize: 10)), // bằng null thì trả về rỗng, ko thì trả về text
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('${photos[index].price.toString()} đ', style: TextStyle(fontSize: 11),),
-                    Container(
-                      decoration: BoxDecoration(
-                          color: Color.fromARGB(255, 216, 105, 105),
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Text('-${photos[index].discountRate}%',
-                          style: TextStyle(fontSize: 11)),
+                    Row(
+                      children: [
+                        RatingBar.builder(
+                          itemSize: 10,
+                          initialRating: photos[index].ratingAverage,
+                          minRating: 1,
+                          direction: Axis.horizontal,
+                          allowHalfRating: true,
+                          itemCount: 5,
+                          itemPadding: EdgeInsets.symmetric(horizontal: 4.0),
+                          itemBuilder: (context, _) => Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                          ),
+                          onRatingUpdate: (rating) {},
+                        ),
+                        Text(
+                          '(${photos[index].reviewCount}) | ',
+                          style: TextStyle(fontSize: 10),
+                        ),
+                        //(' ${} ')
+                        Text(
+                            '${photos[index].quantitySold == null ? '' : photos[index].quantitySold!.text}',
+                            style: TextStyle(fontSize: 10)),
+                        // bằng null thì trả về rỗng, ko thì trả về text
+                      ],
                     ),
-                   
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${photos[index].price.toString()} đ',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                              color: Color.fromARGB(255, 216, 105, 105),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Text('-${photos[index].discountRate}%',
+                              style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
+                    ),
+
+                    //Text(photos[index].id.toString()),// id đang là số ng-> toString vì text nhận string
                   ],
-                ),
-                
-                //Text(photos[index].id.toString()),// id đang là số ng-> toString vì text nhận string
-              ],
-            ))
-        );
+                )));
       },
     );
   }
@@ -173,6 +206,7 @@ class QuantitySold {
     required this.text,
     required this.value,
   });
+
   factory QuantitySold.fromJson(Map<String, dynamic> json) {
     // print('parse QuantitySold from $json');
     return QuantitySold(
