@@ -5,6 +5,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:intl/intl.dart';
+import 'Cart.dart';
+final occ = new NumberFormat("#,##0", "EN_US");
 
 class HomeDetails extends StatefulWidget {
   const HomeDetails({Key? key}) : super(key: key);
@@ -32,11 +35,7 @@ class _HomeDetailsState extends State<HomeDetails> {
       ),
       body: Container(
         child: Container(
-            decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(
-                    width: 1, color: Color.fromARGB(255, 218, 218, 218)),
-                borderRadius: BorderRadius.circular(12)),
+
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -45,66 +44,94 @@ class _HomeDetailsState extends State<HomeDetails> {
                     child: Image.network(
                       product.thumbnailUrl,
                     )),
-                Text(
-                  product.name,
-                  style: TextStyle(fontSize: 30,fontWeight: FontWeight.bold),
+                Padding(
+                  padding: const EdgeInsets.only(left:8.0),
+                  child: Text(
+                    product.name,
+                    style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),
+                  ),
                 ),
-                Row(
+                Padding(
+                  padding: const EdgeInsets.only(left:8.0),
+                  child: Row(
 
-                  children: [
-                    RatingBar.builder(
-                      itemSize: 20,
-                      initialRating: product.ratingAverage,
-                      minRating: 1,
-                      direction: Axis.horizontal,
-                      allowHalfRating: true,
-                      itemCount: 5,
-                      itemPadding: EdgeInsets.symmetric(horizontal: 4.0),
-                      itemBuilder: (context, _) => Icon(
-                        Icons.star,
-                        color: Colors.amber,
+                    children: [
+                      RatingBar.builder(
+                        itemSize: 20,
+                        initialRating: product.ratingAverage,
+                        ignoreGestures: true,
+                        minRating: 1,
+                        direction: Axis.horizontal,
+                        allowHalfRating: true,
+                        itemCount: 5,
+                        itemPadding: EdgeInsets.symmetric(horizontal: 4.0),
+                        itemBuilder: (context, _) => Icon(
+                          Icons.star,
+                          color: Colors.amber,
+                        ),
+                        onRatingUpdate: (rating) {},
                       ),
-                      onRatingUpdate: (rating) {},
-                    ),
-                    Text(
-                      '(${product.reviewCount}) | ',
-                      style: TextStyle(fontSize: 16),
-                    ), //(' ${} ')
-                    Text(
-                        '${product.quantitySold == null ? '' : product.quantitySold!.text}',
-                        style: TextStyle(
-                            fontSize:
-                                16)), // bằng null thì trả về rỗng, ko thì trả về text
-                    IconButton(icon: Icon(Icons.share), onPressed: () => {}),
-                    IconButton(icon: Icon(Icons.copy), onPressed: () => {}),
-                  ],
+                      Text(
+                        '(${product.reviewCount}) | ',
+                        style: TextStyle(fontSize: 16),
+                      ), //(' ${} ')
+                      Text(
+                          '${product.quantitySold == null ? '' : product.quantitySold!.text}',
+                          style: TextStyle(
+                              fontSize:
+                                  16, color: Colors.pink)), // bằng null thì trả về rỗng, ko thì trả về text
+                      IconButton(icon: Icon(Icons.share) , onPressed: () => {}),
+                      IconButton(icon: Icon(Icons.copy), onPressed: () => {}),
+                    ],
+                  ),
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Text(
-                      '${product.price.toString()} đ',
-                      style: TextStyle(fontSize: 19, color: Colors.red, fontWeight: FontWeight.bold),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                          color: Color.fromARGB(255, 216, 105, 105),
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Text('-${product.discountRate}%',
-                          style: TextStyle(fontSize: 16)),
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.only(left:10.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${occ.format(product.price)} đ',
+                        style: TextStyle(fontSize: 21, color: Colors.red, fontWeight: FontWeight.w500),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(right:11.0),
+                        child: Container(
+                          width: 60,
+                          decoration: BoxDecoration(
+                              color: Colors.pink[100],
+                              border: Border.all(
+                                  width: 1, color: Colors.red),
+                              borderRadius: BorderRadius.circular(3)),
+                          child: Center(
+                            child: Text('-${product.discountRate}%',
+                                style: TextStyle(fontSize: 21, color: Colors.red)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 SizedBox(
                   child: Center(
                     child: FlatButton(
-                      child: Text(
-                        'Chọn',
-                        style: TextStyle(fontSize: 20.0, color: Colors.white),
 
+                      child: SizedBox(
+                        width: 350,
+
+                        child: Center(
+                          child: Text(
+                            'Chọn Mua',
+                            style: TextStyle(fontSize: 20.0, color: Colors.white),
+
+                          ),
+                        ),
                       ),
                       color: Colors.red,
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) =>  Cart())
+                );
+                      },
                     ),
                   ),
                 ),

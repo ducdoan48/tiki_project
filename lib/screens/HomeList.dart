@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-
 import 'dart:convert';
 import 'HomeDetails.dart';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:intl/intl.dart';
+import 'Cart.dart';
+import 'package:tiki_project/models/api.dart';
+
+final occ = new NumberFormat("#,##0", "EN_US"); // dấu phẩy
 
 class AppSearch extends StatelessWidget {
   @override
@@ -20,6 +23,7 @@ class AppSearch extends StatelessWidget {
         routes: {
           '/list': (context) => HomeList(),
           '/details': (context) => HomeDetails(),
+          '/cart': (context) => Cart(),
         });
   }
 }
@@ -42,16 +46,74 @@ class _HomeListState extends State<HomeList> {
   //         (w1, w2) => w1.toLowerCase().compareTo(w2.toLowerCase()),
   //   ),
   //       super();
+  
   String query = '';
 
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  bool _isLoading = false;
+  bool _hasMore = true;
+  late int _itemsperpage = 40;
+  late int _page = 1;
+
+  List<Product> products = [];
+ScrollController _sc = new ScrollController();
+  void initState() {
+    super.initState();
+    _isLoading = true;
+    _hasMore = true;
+    this._loadMore(_page);
+       _sc.addListener(() {
+      if (_sc.position.pixels ==
+          _sc.position.maxScrollExtent) {
+        _loadMore(_page);
+      }
+    });
+  }
+
+  void _loadMore(int page, {String name = ''}) {
+    print(_page);
+    print(_itemsperpage);
+    _isLoading = true;
+    ApiCall()
+        .getProductsperpage(_page, _itemsperpage, name: name)
+        .then((List<Product> fetchedList) {
+      if (fetchedList.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _hasMore = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          products.addAll(fetchedList);
+        });
+      }
+    });
+    _page++;
+  }
+
+  @override
+  void dispose() {
+    // TODO: implement setState
+    super.dispose();
+    _searchController.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    
     return Scaffold(
         appBar: AppBar(
-            leading: IconButton(onPressed: () {}, icon: const Icon(Icons.arrow_back)),
+            leading: IconButton(
+                onPressed: () {}, icon: const Icon(Icons.arrow_back)),
             actions: <Widget>[
-              IconButton(icon: const Icon(Icons.shopping_cart), onPressed: () => {}),
+              IconButton(
+                  icon: const Icon(Icons.shopping_cart),
+                  onPressed: () => {
+                        Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => Cart()))
+                      }),
             ],
             backgroundColor: Colors.blue,
             title: Center(
@@ -60,9 +122,11 @@ class _HomeListState extends State<HomeList> {
                   color: Colors.white, borderRadius: BorderRadius.circular(10)),
               child: SizedBox(
                 child: TextField(
+                  controller: _searchController,
                   onChanged: (query) {
                     setState(() {
                       this.query = query;
+                      _isSearching = true;
                     });
                   },
                   decoration: InputDecoration(
@@ -70,133 +134,159 @@ class _HomeListState extends State<HomeList> {
                         onPressed: () {},
                         icon: Icon(Icons.search),
                         color: Colors.grey),
-                    suffixIcon: IconButton(
-                        onPressed: () {
-                          query = '';
-                        },
-                        icon: const Icon(Icons.clear),
-                        color: Colors.grey),
+                    suffixIcon: _isSearching == true
+                        ? IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                this.query = "";
+                                _isSearching = false;
+                              });
+                            },
+                            icon: const Icon(Icons.clear),
+                            color: Colors.grey)
+                        : null,
                     hintText: 'Search...',
                     contentPadding: EdgeInsets.all(20),
                   ),
                 ),
               ),
             ))),
-        body: FutureBuilder<List<Product>>(
-          future: fetchPhotos(http.Client()),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(
-                child: Text('An error has occurred!'),
-              );
-            } else if (snapshot.hasData) {
-              return PhotosList(
-                  photos: snapshot.data!
-                      .where((photos) => photos.name.contains(query)) // nhập vào -> contain: ktra xem có name ko, có thì list ra
-                      .toList());
-            } else {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
+        body: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2, //chia làm 2 cột
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1 / 1.3, // không gian ô
+          ),
+          padding: const EdgeInsets.all(8.0),
+          controller: _sc,
+          itemCount: _hasMore ? products.length + 1 : products.length,
+          itemBuilder: (context, index) {
+            if (products.length == index) {
+              return CircularProgressIndicator();
             }
+            return PhotosList(photos: products[index]);
           },
         ));
+        
   }
+  
 }
 
 class PhotosList extends StatelessWidget {
   const PhotosList({Key? key, required this.photos}) : super(key: key);
 
-  final List<Product> photos;
+  final Product photos;
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, //chia làm 2 cột
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-      ),
-      padding: const EdgeInsets.all(8.0),
-      itemCount: photos.length,
-      itemBuilder: (context, index) {
-        return GestureDetector(
-            onTap: () {
-              Navigator.pushNamed(context, '/details',
-                  arguments: photos[index]);
-            },
-            child: Container(
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(
-                        width: 1, color: Color.fromARGB(200, 200, 200, 200)),
-                    borderRadius: BorderRadius.circular(12)),
-                child: Column(
-                  children: [
-                    SizedBox(
-                        width: 120,
-                        child: Image.network(
-                          photos[index].thumbnailUrl,
-                        )),
-                    Text(
-                      photos[index].name,
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                      // text dài quá thì sẽ xuống dòng
-                      maxLines: 2, // chia làm 2 dòng
-                    ),
-                    Row(
-                      children: [
-                        RatingBar.builder(
-                          itemSize: 10,
-                          initialRating: photos[index].ratingAverage,
-                          minRating: 1,
-                          direction: Axis.horizontal,
-                          allowHalfRating: true,
-                          itemCount: 5,
-                          itemPadding: EdgeInsets.symmetric(horizontal: 4.0),
-                          itemBuilder: (context, _) => Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                          ),
-                          onRatingUpdate: (rating) {},
+    return GestureDetector(
+        onTap: () {
+          Navigator.pushNamed(context, '/details', arguments: photos);
+        },
+        child: Container(
+            decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(
+                    width: 1, color: Color.fromARGB(200, 200, 200, 200)),
+                borderRadius: BorderRadius.circular(12)),
+            child: Column(
+              children: [
+                SizedBox(
+                    width: 120,
+                    height: 150,
+                    child: Image.network(
+                      photos.thumbnailUrl,
+                    )),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: Text(
+                    photos.name,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                    // text dài quá thì sẽ xuống dòng
+                    maxLines: 2, // chia làm 2 dòng
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0, left: 5.0),
+                  child: Row(
+                    children: [
+                      RatingBar.builder(
+                        itemSize: 12,
+                        initialRating: photos.ratingAverage,
+                        minRating: 1,
+                        ignoreGestures: true,
+                        direction: Axis.horizontal,
+                        allowHalfRating: true,
+                        itemCount: 5,
+                        itemPadding: EdgeInsets.symmetric(horizontal: 1.0),
+                        itemBuilder: (context, _) => Icon(
+                          Icons.star,
+                          color: Colors.amber,
                         ),
-                        Text(
-                          '(${photos[index].reviewCount}) | ',
-                          style: TextStyle(fontSize: 10),
+                        onRatingUpdate: (rating) {},
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          '(${photos.reviewCount}) | ',
+                          style: TextStyle(fontSize: 12),
                         ),
-                        //(' ${} ')
-                        Text(
-                            '${photos[index].quantitySold == null ? '' : photos[index].quantitySold!.text}',
-                            style: TextStyle(fontSize: 10)),
-                        // bằng null thì trả về rỗng, ko thì trả về text
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${photos[index].price.toString()} đ',
-                          style: TextStyle(fontSize: 11),
+                      ),
+                      //(' ${} ')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                            '${photos.quantitySold == null ? '' : photos.quantitySold!.text}',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                      // bằng null thì trả về rỗng, ko thì trả về text
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${occ.format(photos.price)} đ',
+                        style: TextStyle(
+                          fontSize: 16,
                         ),
-                        Container(
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 11.0, top: 2.0),
+                        child: Container(
+                          width: 40,
                           decoration: BoxDecoration(
-                              color: Color.fromARGB(255, 216, 105, 105),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Text('-${photos[index].discountRate}%',
-                              style: TextStyle(fontSize: 11)),
+                              color: Colors.pink[100],
+                              border: Border.all(width: 1, color: Colors.red),
+                              borderRadius: BorderRadius.circular(3)),
+                          child: Center(
+                            child: Text('-${photos.discountRate}%',
+                                style:
+                                    TextStyle(fontSize: 16, color: Colors.red)),
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
+                ),
 
-                    //Text(photos[index].id.toString()),// id đang là số ng-> toString vì text nhận string
-                  ],
-                )));
-      },
-    );
+                //Text(photos[index].id.toString()),// id đang là số ng-> toString vì text nhận string
+              ],
+            )
+            )
+            
+            );
+            
   }
 }
+
+//'${photos[index].price.toString()} đ',
 
 class QuantitySold {
   final String text;
@@ -265,16 +355,4 @@ class Product {
   String toString() {
     return 'Product {id: $id, name: $name, price: $price, discountRate: $discountRate}';
   }
-}
-
-List<Product> parsePhotos(String responseBody) {
-  final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
-
-  return parsed.map<Product>((json) => Product.fromJson(json)).toList();
-}
-
-Future<List<Product>> fetchPhotos(http.Client client) async {
-  final response =
-      await client.get(Uri.parse('http://172.29.4.126:30000/products'));
-  return compute(parsePhotos, response.body);
 }
