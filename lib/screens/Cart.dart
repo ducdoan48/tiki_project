@@ -1,25 +1,49 @@
 import 'package:flutter/material.dart';
-import 'package:tiki_project/screens/HomeList.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:intl/intl.dart';
+import 'package:tiki_project/models/products.dart';
+import 'package:tiki_project/screens/HomeList.dart';
+import '../models/CartProvider.dart';
 
-final occ = new NumberFormat("#,##0", "EN_US");
+final occ = NumberFormat.simpleCurrency(locale: 'vi-VN');
 
 class Cart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final shoppingCart = Provider.of<CartProvider>(context);
+
     return Scaffold(
         appBar: AppBar(
-          title: Center(child: Text('Giỏ hàng')),
+          title: Padding(
+            padding: EdgeInsets.only(left: 95),
+            child: (Text(
+              'Giỏ hàng',
+            )),
+          ),
           leading: IconButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => HomeList()));
               },
               icon: Icon(Icons.arrow_back)),
+          actions: [
+            SizedBox(
+              width: 100,
+              child: Row(
+                children: [
+                  RaisedButton(
+                    onPressed: () => {},
+                    color: Colors.blue,
+                    child: Text(
+                      'TikiNgon',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           backgroundColor: Colors.blue,
         ),
         body: CartDetails(),
@@ -28,13 +52,15 @@ class Cart extends StatelessWidget {
             child: Container(
                 height: 100,
                 child: Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
                           padding: const EdgeInsets.only(
                             top: 24,
+                            left: 20,
                           ),
                           child: Text('Tổng cộng',
                               style: TextStyle(
@@ -43,9 +69,10 @@ class Cart extends StatelessWidget {
                               )),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(top: 5,left: 20),
-                          child: Text('285.0000 đ',
-                              style: TextStyle(
+                          padding: const EdgeInsets.only(top: 5, left: 20),
+                          child: Text(
+                              '${occ.format(shoppingCart.getTotalPrice())}',
+                              style: const TextStyle(
                                   fontSize: 25,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.red)),
@@ -60,16 +87,14 @@ class Cart extends StatelessWidget {
                             height: 50,
                             child: Center(
                               child: Text(
-                                'Mua Hàng (2)',
+                                'Mua Hàng (${shoppingCart.productList.where((p) => p.isChecked == true).length})',
                                 style: TextStyle(
                                     fontSize: 16, color: Colors.white),
                               ),
                             ),
                           ),
                           color: Colors.red,
-                          onPressed: () {
-                           
-                          },
+                          onPressed: () {},
                         )),
                   ],
                 ))));
@@ -82,115 +107,164 @@ class CartDetails extends StatefulWidget {
 }
 
 class _CartDetailsState extends State<CartDetails> {
-  late int i = 1;
-  bool isChecked = false;
+ 
+  
+
   @override
   Widget build(BuildContext context) {
+    // final cart = context.watch<CartModel>();
+    final shoppingCart = Provider.of<CartProvider>(context);
+
     return Column(children: [
       Row(
         children: [
           Checkbox(
             checkColor: Colors.white,
-            value: isChecked,
+            value: shoppingCart.checkall,
             onChanged: (bool? value) {
-              setState(() {
-                isChecked = value!;
-              });
+              shoppingCart.checkall = value!;
+                shoppingCart.checkAll(shoppingCart.productList, shoppingCart.checkall) ;
+                
             },
           ),
-          Text('Tất cả( sản phẩm)'),
-          Padding(
-            padding: const EdgeInsets.only(left: 200),
-            child: IconButton(onPressed: () {}, icon: Icon(Icons.delete)),
-          ),
+          Spacer(),
+          Text('Tất cả( ${shoppingCart.productList.where((p) => p.isChecked == true).length} sản phẩm) '),// độ dài của những sản phẩm được chọn
+          Spacer(flex: 50),
+          IconButton(
+              onPressed: () {
+                if (shoppingCart.productList.isNotEmpty) {
+                  return openMyAlertDialog(context, shoppingCart);
+                } else {}
+              },
+              icon: Icon(Icons.delete)),
         ],
       ),
       Expanded(
           child: ListView.separated(
-        itemCount: 25,
+        itemCount: shoppingCart.productList.length,
         separatorBuilder: (BuildContext context, int index) => const Divider(),
         itemBuilder: (BuildContext context, int index) {
-          return ListTile(
-            title: Row(children: [
+          final cartproduct = shoppingCart.productList[index];
+
+          return Container(
+            child: Row(children: [
+              Checkbox(
+                checkColor: Colors.white,
+                value: shoppingCart.productList[index].isChecked,
+                onChanged: (bool? value) {
+                  shoppingCart.checked(shoppingCart.productList[index], value!);
+                },
+              ),
               SizedBox(
-                width: 100,
-                height: 100,
-                child: Expanded(
-                  child: Image.network(
-                      'https://salt.tikicdn.com/cache/280x280/ts/product/19/5e/21/e9545516e51437aa3266c8a684c83f1d.jpg'),
-                ),
+                width: 110,
+                height: 130,
+                child: Image.network(cartproduct.product.thumbnailUrl),
+                //(hà cc.mảng có gtri index).
               ),
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 5.0),
-                    child: Text(
-                      'Điện thoại Samsung S20 FE',
-                      style:
-                          TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 5.0),
+                      child: Text(
+                        cartproduct.product.name,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 4,
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(0),
-                    child: Text(
-                      '10.000đ',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 5.0),
+                      child: Text(
+                        occ.format(cartproduct.product.price),
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 4,
+                      ),
                     ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      
-                        color: Colors.grey.shade100,
-                        border: Border.all(
-                        width: 1, color: Color.fromARGB(200, 200, 200, 200)),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Row(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        FlatButton(
-                          minWidth: 10.0,
-  height: 5.0,
-                          child: Text('-'),
-                          onPressed: () {
-                            setState(() {
-                              i--;
-                              if (i < 0) {
-                                i = 0;
-                              }
-                              ;
-                            });
-                          },
+                        Container(
+                          decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              border: Border.all(
+                                  width: 1,
+                                  color: Color.fromARGB(200, 200, 200, 200)),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                  onPressed: () {
+                                    shoppingCart.sub(cartproduct);
+                                  },
+                                  icon: const Icon(Icons.remove)),
+                              Text('${cartproduct.quantity}'),
+                              IconButton(
+                                  onPressed: () {
+                                    shoppingCart.plus(cartproduct);
+                                  },
+                                  icon: const Icon(Icons.add)),
+                            ],
+                          ),
                         ),
-                        Text('$i'),
-                        FlatButton(
-                          minWidth: 10.0,
-  height: 5.0,
-                            child: Text('+'),
-                            onPressed: () {
-                              setState(() {
-                                i++;
-                              });
-                            }),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
+                          child: TextButton(
+                              onPressed: () {
+                                shoppingCart.remove(cartproduct);
+                              },
+                              child: Text('Xóa')),
+                        )
                       ],
-                    ),
-                  )
-                ],
-              ),
+                    )
+                  ],
+                ),
+              )
             ]),
-            leading: Checkbox(
-              checkColor: Colors.white,
-              value: isChecked,
-              onChanged: (bool? value) {
-                setState(() {
-                  isChecked = value!;
-                });
-              },
-            ),
           );
         },
       )),
     ]);
   }
+}
+
+void openMyAlertDialog(BuildContext context, CartProvider shoppingCart) {
+  //shoppingCart nằm trong hàm build(private), dùng ở ngoài thì p kbao
+  // Create a AlertDialog.
+  AlertDialog dialog = AlertDialog(
+    title: Text("Xác nhận"),
+    content: Text("Bạn có thực sự muốn xóa hay không?"),
+    shape: RoundedRectangleBorder(
+        side: BorderSide(color: Colors.green, width: 3),
+        borderRadius: BorderRadius.all(Radius.circular(15))),
+    actions: [
+      ElevatedButton(
+          child: Text("Có"),
+          onPressed: () {
+            shoppingCart.clearlist();
+            Navigator.of(context).pop(true); // Return true
+          }),
+      ElevatedButton(
+          child: Text("Không"),
+          onPressed: () {
+            Navigator.of(context).pop(false); // Return false
+          }),
+    ],
+  );
+
+  // Call showDialog function.
+  Future futureValue = showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return dialog;
+      });
+  futureValue.then((value) {
+    print("Return value: " + value.toString()); // true/false
+  });
 }

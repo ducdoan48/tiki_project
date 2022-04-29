@@ -1,30 +1,34 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'HomeDetails.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:intl/intl.dart';
 import 'Cart.dart';
 import 'package:tiki_project/models/api.dart';
+import 'package:tiki_project/models/products.dart';
+import 'dart:async';
+import 'package:badges/badges.dart';
+import 'package:provider/provider.dart';
+import 'package:tiki_project/models/CartProvider.dart';
 
-final occ = new NumberFormat("#,##0", "EN_US"); // dấu phẩy
+final occ = NumberFormat.simpleCurrency(locale: 'vi-VN');
 
-class AppSearch extends StatelessWidget {
+class TikiProject extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    Color color = Theme.of(context).primaryColor;
+    // final Color color = Theme.of(context).primaryColor;
 
-    // TODO: implement build
-    return MaterialApp(
-        title: 'Danh sách sản phẩm',
-        initialRoute: '/list',
-        routes: {
-          '/list': (context) => HomeList(),
-          '/details': (context) => HomeDetails(),
-          '/cart': (context) => Cart(),
-        });
+    return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
+        ],
+        child: MaterialApp(
+            title: 'Danh sách sản phẩm',
+            initialRoute: '/list',
+            routes: {
+              '/list': (context) => HomeList(),
+              '/details': (context) => HomeDetails(),
+              '/cart': (context) => Cart(),
+            }));
   }
 }
 
@@ -35,48 +39,40 @@ class HomeList extends StatefulWidget {
   State<HomeList> createState() => _HomeListState();
 }
 
-// Adapted from search demo in offical flutter gallery:
-// https://github.com/flutter/flutter/blob/master/examples/flutter_gallery/lib/demo/material/search_demo.dart
-
 class _HomeListState extends State<HomeList> {
-  // final List<String> Words;
-  // _HomeListState()
-  //     : Words = List.from(Set.from(all))
-  //   ..sort(
-  //         (w1, w2) => w1.toLowerCase().compareTo(w2.toLowerCase()),
-  //   ),
-  //       super();
-  
+  Timer? _debounce;
   String query = '';
 
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   bool _isLoading = false;
   bool _hasMore = true;
-  late int _itemsperpage = 40;
-  late int _page = 1;
+  int _itemsperpage = 40;
+  int _page = 1;
 
   List<Product> products = [];
-ScrollController _sc = new ScrollController();
+  ScrollController _sc = new ScrollController();
   void initState() {
     super.initState();
+
     _isLoading = true;
     _hasMore = true;
     this._loadMore(_page);
-       _sc.addListener(() {
-      if (_sc.position.pixels ==
-          _sc.position.maxScrollExtent) {
+    _sc.addListener(() {
+      if (_sc.position.pixels == _sc.position.maxScrollExtent) {
         _loadMore(_page);
       }
     });
   }
 
   void _loadMore(int page, {String name = ''}) {
-    print(_page);
-    print(_itemsperpage);
     _isLoading = true;
-    ApiCall()
-        .getProductsperpage(_page, _itemsperpage, name: name)
+    Api()
+        .getProductsperpage(
+      _page,
+      _itemsperpage,
+      name: name,
+    )
         .then((List<Product> fetchedList) {
       if (fetchedList.isEmpty) {
         setState(() {
@@ -84,17 +80,25 @@ ScrollController _sc = new ScrollController();
           _hasMore = false;
         });
       } else {
+        print(_page);
+        print(_itemsperpage);
         setState(() {
-          _isLoading = false;
+          _isLoading = true;
           products.addAll(fetchedList);
+          // het data roi, khong can load them nua
+          if (fetchedList.length < 40) {
+            _hasMore = false;
+          }
         });
       }
     });
+    _itemsperpage = 20; // sau khi load xong thì load thêm 20 sp
     _page++;
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     // TODO: implement setState
     super.dispose();
     _searchController.dispose();
@@ -102,18 +106,37 @@ ScrollController _sc = new ScrollController();
 
   @override
   Widget build(BuildContext context) {
-    
+    final shoppingCart = Provider.of<CartProvider>(context);
     return Scaffold(
         appBar: AppBar(
             leading: IconButton(
                 onPressed: () {}, icon: const Icon(Icons.arrow_back)),
-            actions: <Widget>[
-              IconButton(
-                  icon: const Icon(Icons.shopping_cart),
-                  onPressed: () => {
-                        Navigator.push(context,
-                            MaterialPageRoute(builder: (context) => Cart()))
-                      }),
+            actions: [
+              SizedBox(
+                width: 25.0,
+                child: IconButton(
+                    icon: const Icon(Icons.shopping_bag_outlined),
+                    onPressed: () => {
+                          // Navigator.push(context,
+                          //     MaterialPageRoute(builder: (context) => Cart()));
+
+                          Navigator.pushNamed(context, '/cart')
+                        }),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 15.0),
+                child: Center(
+                  child: Badge(
+                    badgeContent: Text(
+                        '${shoppingCart.productList.length == 0 ? '' : shoppingCart.productList.length}'),
+                    animationDuration: const Duration(milliseconds: 300),
+                  ),
+                  
+                ),
+              ),
+              SizedBox(
+                width: 10.0,
+              ),
             ],
             backgroundColor: Colors.blue,
             title: Center(
@@ -125,8 +148,14 @@ ScrollController _sc = new ScrollController();
                   controller: _searchController,
                   onChanged: (query) {
                     setState(() {
-                      this.query = query;
-                      _isSearching = true;
+                      if (_debounce?.isActive ?? false) _debounce?.cancel();
+                      _debounce = Timer(const Duration(milliseconds: 500), () {
+                        products.clear();
+                        this.query = query;
+                        _isSearching = true;
+                        _page = 1;
+                        _loadMore(_page, name: query);
+                      });
                     });
                   },
                   decoration: InputDecoration(
@@ -139,8 +168,12 @@ ScrollController _sc = new ScrollController();
                             onPressed: () {
                               setState(() {
                                 _searchController.clear();
-                                this.query = "";
-                                _isSearching = false;
+                                _isSearching = true;
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const HomeList()));
                               });
                             },
                             icon: const Icon(Icons.clear),
@@ -163,27 +196,30 @@ ScrollController _sc = new ScrollController();
           controller: _sc,
           itemCount: _hasMore ? products.length + 1 : products.length,
           itemBuilder: (context, index) {
+            if (!_isLoading) return const CircularProgressIndicator();
+
             if (products.length == index) {
-              return CircularProgressIndicator();
+              return const CircularProgressIndicator(
+                backgroundColor: Colors.cyanAccent,
+                strokeWidth: 10,
+              );
             }
-            return PhotosList(photos: products[index]);
+            return ProductItem(product: products[index]);
           },
         ));
-        
   }
-  
 }
 
-class PhotosList extends StatelessWidget {
-  const PhotosList({Key? key, required this.photos}) : super(key: key);
+class ProductItem extends StatelessWidget {
+  const ProductItem({Key? key, required this.product}) : super(key: key);
 
-  final Product photos;
+  final Product product;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
         onTap: () {
-          Navigator.pushNamed(context, '/details', arguments: photos);
+          Navigator.pushNamed(context, '/details', arguments: product);
         },
         child: Container(
             decoration: BoxDecoration(
@@ -197,12 +233,12 @@ class PhotosList extends StatelessWidget {
                     width: 120,
                     height: 150,
                     child: Image.network(
-                      photos.thumbnailUrl,
+                      product.thumbnailUrl,
                     )),
                 Padding(
                   padding: const EdgeInsets.only(left: 8.0),
                   child: Text(
-                    photos.name,
+                    product.name,
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                     // text dài quá thì sẽ xuống dòng
@@ -215,7 +251,7 @@ class PhotosList extends StatelessWidget {
                     children: [
                       RatingBar.builder(
                         itemSize: 12,
-                        initialRating: photos.ratingAverage,
+                        initialRating: product.ratingAverage,
                         minRating: 1,
                         ignoreGestures: true,
                         direction: Axis.horizontal,
@@ -231,7 +267,7 @@ class PhotosList extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 4.0),
                         child: Text(
-                          '(${photos.reviewCount}) | ',
+                          '(${product.reviewCount}) | ',
                           style: TextStyle(fontSize: 12),
                         ),
                       ),
@@ -239,120 +275,63 @@ class PhotosList extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 4.0),
                         child: Text(
-                            '${photos.quantitySold == null ? '' : photos.quantitySold!.text}',
+                            '${product.quantitySold == null ? '' : product.quantitySold!.text}',
                             style: TextStyle(fontSize: 12)),
                       ),
-                      // bằng null thì trả về rỗng, ko thì trả về text
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0, top: 2.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${occ.format(photos.price)} đ',
-                        style: TextStyle(
-                          fontSize: 16,
+                product.discountRate == 0
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${occ.format(product.price)} ',
+                              style: TextStyle(
+                                fontSize: 16,
+                              ),
+                            ),
+                            // if(product.discountRate < 0)
+                            // {}
+                          ],
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 11.0, top: 2.0),
-                        child: Container(
-                          width: 40,
-                          decoration: BoxDecoration(
-                              color: Colors.pink[100],
-                              border: Border.all(width: 1, color: Colors.red),
-                              borderRadius: BorderRadius.circular(3)),
-                          child: Center(
-                            child: Text('-${photos.discountRate}%',
-                                style:
-                                    TextStyle(fontSize: 16, color: Colors.red)),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                            child: Text(
+                              '${occ.format(product.price)} ',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.red,
+                              ),
+                            ),
                           ),
-                        ),
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(right: 11.0, top: 2.0),
+                            child: Container(
+                              width: 40,
+                              decoration: BoxDecoration(
+                                  color: Colors.pink[100],
+                                  border:
+                                      Border.all(width: 1, color: Colors.red),
+                                  borderRadius: BorderRadius.circular(3)),
+                              child: Center(
+                                child: Text('-${product.discountRate}%',
+                                    style: TextStyle(
+                                        fontSize: 16, color: Colors.red)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-
-                //Text(photos[index].id.toString()),// id đang là số ng-> toString vì text nhận string
               ],
-            )
-            )
-            
-            );
-            
+            )));
   }
-}
-
-//'${photos[index].price.toString()} đ',
-
-class QuantitySold {
-  final String text;
-  final int value;
-
-  QuantitySold({
-    required this.text,
-    required this.value,
-  });
-
-  factory QuantitySold.fromJson(Map<String, dynamic> json) {
-    // print('parse QuantitySold from $json');
-    return QuantitySold(
-      text: json['text'] ?? '',
-      value: json['value'],
-    );
-  }
-}
-
-class Product {
-  final int id;
-  final String name;
-  final String thumbnailUrl;
-  final int price;
-  final int originalPrice;
-  final int discountRate;
-  final double ratingAverage;
-  final int reviewCount;
-  final QuantitySold? quantitySold;
-
-  Product({
-    required this.id,
-    required this.name,
-    required this.thumbnailUrl,
-    required this.price,
-    required this.originalPrice,
-    required this.discountRate,
-    required this.ratingAverage,
-    required this.reviewCount,
-    this.quantitySold,
-  });
-
-  factory Product.fromJson(Map<String, dynamic> json) {
-    // print('Mapping $json');
-    try {
-      return Product(
-        id: json['id'],
-        name: json['name'] ?? '',
-        thumbnailUrl: json['thumbnail_url'] ?? '',
-        price: int.parse('${json['price'] ?? '0'}'),
-        originalPrice: int.parse('${json['original_price'] ?? '0'}'),
-        discountRate: int.parse('${json['discount_rate'] ?? '0'}'),
-        ratingAverage: double.parse('${json['rating_average'] ?? '0'}'),
-        reviewCount: int.parse('${json['review_count'] ?? '0'}'),
-        quantitySold: json['quantity_sold'] == null
-            ? null
-            : QuantitySold.fromJson(json['quantity_sold']),
-      );
-    } catch (e) {
-      print(e);
-      rethrow;
-    }
-  }
-
-  @override
-  String toString() {
-    return 'Product {id: $id, name: $name, price: $price, discountRate: $discountRate}';
-  }
+  
 }

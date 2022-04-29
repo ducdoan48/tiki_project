@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:tiki_project/models/CartProvider.dart';
 import 'screens/HomeList.dart';
-import 'screens/HomeDetails.dart';
-import 'lazyload.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  runApp( AppSearch());
+  runApp(
+    TikiProject(),
+  );
 }
-
-
-
